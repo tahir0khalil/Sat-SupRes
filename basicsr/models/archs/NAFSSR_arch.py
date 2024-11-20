@@ -83,7 +83,8 @@ class NAFBlockSR(nn.Module):
     def __init__(self, c, fusion=False, drop_out_rate=0.):
         super().__init__()
         self.blk = NAFBlock(c, drop_out_rate=drop_out_rate)
-        self.fusion = SCAM(c) if fusion else None
+        # self.fusion = SCAM(c) if fusion else None
+        self.fusion = None
 
     def forward(self, *feats):
         feats = tuple([self.blk(x) for x in feats])
@@ -118,10 +119,19 @@ class NAFNetSR(nn.Module):
 
     def forward(self, inp):
         inp_hr = F.interpolate(inp, scale_factor=self.up_scale, mode='bilinear')
-        if self.dual:
-            inp = inp.chunk(2, dim=1)
-        else:
-            inp = (inp, )
+        # print("=====================")
+        # print(f"inp.shape: {inp.shape}")
+
+        # if self.dual:
+        #     inp = inp.chunk(2, dim=1)
+        #     # print(f"inp.shape: {inp.shape}")
+        #     # print("1111111111111111111111")
+        # else:
+        #     # print("0000000000000000000000")
+        #     inp = (inp, )
+        inp = (inp, )
+        # print(f"inp.shape: {inp.shape}")
+        # print("=====================")
         feats = [self.intro(x) for x in inp]
         feats = self.body(*feats)
         out = torch.cat([self.up(x) for x in feats], dim=1)
@@ -129,10 +139,11 @@ class NAFNetSR(nn.Module):
         return out
 
 class NAFSSR(Local_Base, NAFNetSR):
-    def __init__(self, *args, train_size=(1, 6, 30, 90), fast_imp=False, fusion_from=-1, fusion_to=1000, **kwargs):
+    def __init__(self, *args, train_size=(1, 3, 30, 90), fast_imp=False, fusion_from=-1, fusion_to=1000, **kwargs):
         Local_Base.__init__(self)
-        NAFNetSR.__init__(self, *args, img_channel=3, fusion_from=fusion_from, fusion_to=fusion_to, dual=True, **kwargs)
-
+        NAFNetSR.__init__(self, *args, img_channel=3, fusion_from=fusion_from, fusion_to=fusion_to, dual=False, **kwargs)
+        # print("====================")
+        # print(f"train_size: {train_size}")
         N, C, H, W = train_size
         base_size = (int(H * 1.5), int(W * 1.5))
 

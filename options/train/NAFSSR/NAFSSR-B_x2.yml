@@ -5,27 +5,27 @@
 # Copyright 2018-2020 BasicSR Authors
 # ------------------------------------------------------------------------
 # general settings
-name: NAFNetSR-B_x2
+name: NAFNetSR-B_x2_SAR_2_blur
 model_type: ImageRestorationModel
 scale: 2
-num_gpu: 8
+num_gpu: 1
 manual_seed: 10
 
 datasets:
   train:
-    name: Flickr1024-sr-train
+    name: SAR-sr-train
     type: PairedStereoImageDataset
-    dataroot_gt: datasets/StereoSR/patches_x2/
-    dataroot_lq: datasets/StereoSR/patches_x2/
+    dataroot_gt: /local_dataset/SAR/train/HR
+    dataroot_lq: /local_dataset/SAR/train/LR_512
     io_backend:
       type: disk
 
-    gt_size_h: 60
-    gt_size_w: 180
+    gt_size_h: 144
+    gt_size_w: 144
     use_hflip: true
     use_vflip: true
     use_rot: false
-    flip_RGB: true
+    flip_RGB: false
 
     # data loader
     use_shuffle: true
@@ -35,10 +35,10 @@ datasets:
     prefetch_mode: ~
 
   val:
-    name: Flickr1024-sr-test
-    type: PairedStereoImageDataset
-    dataroot_gt: datasets/StereoSR/test/Flickr1024/hr
-    dataroot_lq: datasets/StereoSR/test/Flickr1024/lr_x2
+    name: SAR-sr-test
+    type: PairedImageDataset
+    dataroot_gt: /local_dataset/SAR/val/HR
+    dataroot_lq: /local_dataset/SAR/val/LR_512
     io_backend:
       type: disk
 
@@ -49,7 +49,7 @@ network_g:
   width: 96
   num_blks: 64
   drop_path_rate: 0.2
-  train_size: [1, 6, 30, 90]
+  train_size: [1, 3, 30, 90] #6,3,1
   drop_out_rate: 0.
 
 # path
@@ -83,7 +83,7 @@ train:
 
 # validation settings
 val:
-  val_freq: !!float 2e4
+  val_freq: 10000000.0
   save_img: false
   trans_num: 1
 
@@ -100,7 +100,7 @@ val:
 # logging settings
 logger:
   print_freq: 200
-  save_checkpoint_freq: !!float 1e4
+  save_checkpoint_freq: !!float 2e4
   use_tb_logger: true
   wandb:
     project: ~
@@ -110,3 +110,6 @@ logger:
 dist_params:
   backend: nccl
   port: 29500
+
+
+# python basicsr/train.py -opt options/train/NAFSSR/NAFSSR-B_x2.yml 

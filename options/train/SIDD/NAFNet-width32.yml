@@ -5,7 +5,7 @@
 # Copyright 2018-2020 BasicSR Authors
 # ------------------------------------------------------------------------
 # general settings
-name: NAFNet-SIDD-width32
+name: NAFNet-Descan-256-correct
 model_type: ImageRestorationModel
 scale: 1
 num_gpu: 8
@@ -13,14 +13,14 @@ manual_seed: 10
 
 datasets:
   train:
-    name: SIDD
-    type: PairedImageDataset
-    dataroot_gt: ./datasets/SIDD/train/gt_crops.lmdb
-    dataroot_lq: ./datasets/SIDD/train/input_crops.lmdb
+    name: descan_256_correct
+    type: PairedImageSRLRDataset
+    dataroot_gt: /home/tahir/workspace/descan_extension/data_set/Descan_dataset/Train/clean_512
+    dataroot_lq: /home/tahir/workspace/descan_extension/data_set/Descan_dataset/Train/scan_512
 
     filename_tmpl: '{}'
     io_backend:
-      type: lmdb
+      type: disk #lmdb
 
     gt_size: 256
     use_flip: false
@@ -29,17 +29,17 @@ datasets:
     # data loader
     use_shuffle: true
     num_worker_per_gpu: 4
-    batch_size_per_gpu: 4
+    batch_size_per_gpu: 2
     dataset_enlarge_ratio: 1
     prefetch_mode: ~
 
   val:
-    name: SIDD_val
-    type: PairedImageDataset
-    dataroot_gt: ./datasets/SIDD/val/gt_crops.lmdb
-    dataroot_lq: ./datasets/SIDD/val/input_crops.lmdb
+    name: descan_val_256_correct
+    type: PairedImageSRLRDataset
+    dataroot_gt: /home/tahir/workspace/descan_extension/data_set/Descan_dataset/Valid/clean_512
+    dataroot_lq: /home/tahir/workspace/descan_extension/data_set/Descan_dataset/Valid/scan_512
     io_backend:
-      type: lmdb
+      type: disk
 
 
 network_g:
@@ -73,7 +73,7 @@ train:
 
   # losses
   pixel_opt:
-    type: PSNRLoss
+    type: FDL_loss #PSNRLoss
     loss_weight: 1
     reduction: mean
 
@@ -106,3 +106,8 @@ logger:
 dist_params:
   backend: nccl
   port: 29500
+
+
+
+# python -m torch.distributed.launch --nproc_per_node=8 --master_port=4321 basicsr/train.py -opt options/train/SIDD/NAFNet-width32.yml --launcher pytorch
+# torchrun --nproc_per_node=8 basicsr/train.py -opt options/train/SIDD/NAFNet-width32.yml --launcher pytorch

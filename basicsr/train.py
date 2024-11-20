@@ -11,6 +11,7 @@ import math
 import random
 import time
 import torch
+import os
 from os import path as osp
 
 from basicsr.data import create_dataloader, create_dataset
@@ -34,14 +35,19 @@ def parse_options(is_train=True):
         choices=['none', 'pytorch', 'slurm'],
         default='none',
         help='job launcher')
-    parser.add_argument('--local_rank', type=int, default=0)
-
+    # print("bbbbbbbbbbbbbbbbbbbbbb")
+    # parser.add_argument('--local_rank', type=int, default=0)
+    # local_rank = int(os.environ["LOCAL_RANK"])
+    # print("aaaaaaaaaaaaaaaaaaaaaa")
+    
     parser.add_argument('--input_path', type=str, required=False, help='The path to the input image. For single image inference only.')
     parser.add_argument('--output_path', type=str, required=False, help='The path to the output image. For single image inference only.')
-
+    # print(3333333333333333333)
     args = parser.parse_args()
+    #-----------------------
+    # print(3333333333333333333)
     opt = parse(args.opt, is_train=is_train)
-
+    # print(3333333333333333333)
     # distributed settings
     if args.launcher == 'none':
         opt['dist'] = False
@@ -55,7 +61,7 @@ def parse_options(is_train=True):
             print('init dist .. ', args.launcher)
 
     opt['rank'], opt['world_size'] = get_dist_info()
-
+    
     # random seed
     seed = opt.get('manual_seed')
     if seed is None:
@@ -124,7 +130,17 @@ def create_train_val_dataloader(opt, logger):
                 f'\n\tWorld size (gpu number): {opt["world_size"]}'
                 f'\n\tRequire iter number per epoch: {num_iter_per_epoch}'
                 f'\n\tTotal epochs: {total_epochs}; iters: {total_iters}.')
+            print("==========================")
+            # Fetch the first batch
+            batch = next(iter(train_loader))
 
+            # If batch is a tuple (like (data, labels)), get the data part
+            b1 = batch 
+            # print("b1 shape:", b1.shape)
+            # print(f"batch[lq].shape: {b1['lq'].shape}")
+            # print(f"batch[gt].shape: {b1['gt'].shape}")
+            # print("b2 shape:", b2.shape)
+            # print("==========================")
         elif phase == 'val':
             val_set = create_dataset(dataset_opt)
             val_loader = create_dataloader(
@@ -145,8 +161,9 @@ def create_train_val_dataloader(opt, logger):
 
 def main():
     # parse options, set distributed setting, set ramdom seed
+    # print(111111111111111,'\n')
     opt = parse_options(is_train=True)
-
+    # print(222222222222222222,'\n')
     torch.backends.cudnn.benchmark = True
     # torch.backends.cudnn.deterministic = True
 
@@ -262,7 +279,8 @@ def main():
                 model.save(epoch, current_iter)
 
             # validation
-            if opt.get('val') is not None and (current_iter % opt['val']['val_freq'] == 0 or current_iter == 1000):
+            # if opt.get('val') is not None and (current_iter % opt['val']['val_freq'] == 0 or current_iter == 1000):
+            if current_iter % opt['val']['val_freq'] == 0:    
             # if opt.get('val') is not None and (current_iter % opt['val']['val_freq'] == 0):
                 rgb2bgr = opt['val'].get('rgb2bgr', True)
                 # wheather use uint8 image to compute metrics

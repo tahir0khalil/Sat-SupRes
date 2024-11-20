@@ -1,0 +1,128 @@
+# ------------------------------------------------------------------------
+# Copyright (c) 2022 megvii-model. All Rights Reserved.
+# ------------------------------------------------------------------------
+# Modified from BasicSR (https://github.com/xinntao/BasicSR)
+# Copyright 2018-2020 BasicSR Authors
+# ------------------------------------------------------------------------
+# general settings
+name: NAFNetSR-S_x2_tr_merge_more_iterations
+model_type: ImageRestorationModel
+scale: 2
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  train:
+    name: Flickr1024-sr-train
+    type: PairedStereoImageDataset
+    # dataroot_gt: datasets/StereoSR/patches_x2/
+    # dataroot_lq: datasets/StereoSR/patches_x2/
+    # dataroot_gt: /home/dircon/tahir/dataset/dota/train_1024 # dota
+    # dataroot_lq: /home/dircon/tahir/dataset/dota/train_1024_x2
+    # dataroot_gt: /home/dircon/myeongjun/data/cas/unmerged/train/HR
+    # dataroot_lq: /home/dircon/myeongjun/data/cas/unmerged/train/LR_512
+    dataroot_gt: /home/dircon/NAS_hoeyeong/m_data/merged_data/train/HR
+    dataroot_lq: /home/dircon/NAS_hoeyeong/m_data/merged_data/train/LR_512
+    io_backend:
+      type: disk
+
+    gt_size_h: 60
+    gt_size_w: 180
+    use_hflip: true
+    use_vflip: true
+    use_rot: false
+    flip_RGB: true
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 4
+    batch_size_per_gpu: 4
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  val:
+    name: Flickr1024-sr-test
+    type: PairedStereoImageDataset
+    # dataroot_gt: datasets/StereoSR/test/Flickr1024/hr
+    # dataroot_lq: datasets/StereoSR/test/Flickr1024/lr_x2
+    # dataroot_gt: /home/dircon/tahir/dataset/dota/val_500gt_1024 # dota
+    # dataroot_lq: /home/dircon/tahir/dataset/dota/val_500gt_1024_x2
+    # dataroot_gt: /home/dircon/myeongjun/data/cas/unmerged/val/HR
+    # dataroot_lq: /home/dircon/myeongjun/data/cas/unmerged/val/LR_512
+    #dataroot_gt: /home/dircon/NAS_hoeyeong/m_data/merged_data/val/HR
+    #dataroot_lq: /home/dircon/NAS_hoeyeong/m_data/merged_data/val/LR_512
+    dataroot_gt: /home/dircon/myeongjun/data/A25/unmerged/val/HR
+    dataroot_lq: /home/dircon/myeongjun/data/A25/unmerged/val/LR_512
+    io_backend:
+      type: disk
+
+# network structures
+network_g:
+  type: NAFSSR
+  up_scale: 2
+  width: 64
+  num_blks: 32
+  drop_path_rate: 0.1
+  train_size: [1, 6, 30, 90]
+  drop_out_rate: 0.
+
+# path
+path:
+  pretrain_network_g: /home/dircon/tahir/dataset/NAFNet/experiments/NAFNetSR-S_x2_tr_merge_more_iterations/models/net_g_270000.pth
+  strict_load_g: true
+  resume_state: /home/dircon/tahir/dataset/NAFNet/experiments/NAFNetSR-S_x2_tr_merge_more_iterations/training_states/270000.state
+
+# training settings
+train:
+  optim_g:
+    type: AdamW
+    lr: !!float 3e-3
+    weight_decay: !!float 0
+    betas: [0.9, 0.9]
+
+  scheduler:
+    type: TrueCosineAnnealingLR
+    T_max: 300000
+    eta_min: !!float 1e-7
+
+  total_iter: 300000
+  warmup_iter: -1 # no warm up
+  mixup: false
+
+  # losses
+  pixel_opt:
+    type: MSELoss
+    loss_weight: 1.
+    reduction: mean
+
+# validation settings
+val:
+  val_freq: !!float 2e4
+  save_img: false
+  trans_num: 1
+
+  max_minibatch: 1
+
+  metrics:
+    psnr: # metric name, can be arbitrary
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:
+      type: calculate_skimage_ssim
+
+# logging settings
+logger:
+  print_freq: 200
+  save_checkpoint_freq: !!float 1e4
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500
+
+# python -m torch.distributed.launch --nproc_per_node=8 --master_port=4321 basicsr/train.py -opt options/train/NAFSSR/NAFSSR-B_x4.yml --launcher pytorch

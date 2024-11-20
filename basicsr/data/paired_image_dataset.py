@@ -110,15 +110,20 @@ class PairedImageDataset(data.Dataset):
             # random crop
             img_gt, img_lq = paired_random_crop(img_gt, img_lq, gt_size, scale,
                                                 gt_path)
-            # flip, rotation
-            img_gt, img_lq = augment([img_gt, img_lq], self.opt['use_flip'],
-                                     self.opt['use_rot'])
+            # # flip, rotation
+            # img_gt, img_lq = augment([img_gt, img_lq], self.opt['use_flip'],
+            #                          self.opt['use_rot'])
 
         # TODO: color space transform
         # BGR to RGB, HWC to CHW, numpy to tensor
         img_gt, img_lq = img2tensor([img_gt, img_lq],
                                     bgr2rgb=True,
                                     float32=True)
+        
+        # print("=============================")
+        # print(f"img_gt.shape: {img_gt.shape}")
+        # print(f"img_lq.shape: {img_lq.shape}")
+        # print("=============================")
         # normalize
         if self.mean is not None or self.std is not None:
             normalize(img_lq, self.mean, self.std, inplace=True)

@@ -11,11 +11,18 @@ from collections import OrderedDict
 from copy import deepcopy
 from os import path as osp
 from tqdm import tqdm
-
+import time 
+# from FDL_pytorch import FDL_loss
 from basicsr.models.archs import define_network
 from basicsr.models.base_model import BaseModel
 from basicsr.utils import get_root_logger, imwrite, tensor2img
 from basicsr.utils.dist_util import get_dist_info
+import torchvision.transforms as transforms 
+import torchvision 
+import numpy as np 
+import cv2 
+from skimage import io, img_as_float, img_as_ubyte
+from skimage.filters import unsharp_mask 
 
 loss_module = importlib.import_module('basicsr.models.losses')
 metric_module = importlib.import_module('basicsr.metrics')
@@ -48,19 +55,22 @@ class ImageRestorationModel(BaseModel):
         # define losses
         if train_opt.get('pixel_opt'):
             pixel_type = train_opt['pixel_opt'].pop('type')
-            cri_pix_cls = getattr(loss_module, pixel_type)
-            self.cri_pix = cri_pix_cls(**train_opt['pixel_opt']).to(
-                self.device)
+            if pixel_type == 'FDL_loss': 
+                self.cri_pix = FDL_loss().cuda()
+            else:
+                cri_pix_cls = getattr(loss_module, pixel_type)
+                self.cri_pix = cri_pix_cls(**train_opt['pixel_opt']).to(
+                    self.device)
         else:
             self.cri_pix = None
 
-        if train_opt.get('perceptual_opt'):
-            percep_type = train_opt['perceptual_opt'].pop('type')
-            cri_perceptual_cls = getattr(loss_module, percep_type)
-            self.cri_perceptual = cri_perceptual_cls(
-                **train_opt['perceptual_opt']).to(self.device)
-        else:
-            self.cri_perceptual = None
+        # if train_opt.get('perceptual_opt'):
+        #     percep_type = train_opt['perceptual_opt'].pop('type')
+        #     cri_perceptual_cls = getattr(loss_module, percep_type)
+        #     self.cri_perceptual = cri_perceptual_cls(
+        #         **train_opt['perceptual_opt']).to(self.device)
+        # else:
+        #     self.cri_perceptual = None
 
         if self.cri_pix is None and self.cri_perceptual is None:
             raise ValueError('Both pixel and perceptual losses are None.')
@@ -205,21 +215,26 @@ class ImageRestorationModel(BaseModel):
             l_pix = 0.
             for pred in preds:
                 l_pix += self.cri_pix(pred, self.gt)
+            # print(f"preds[-1]: {preds[-1].shape}")
+            # print(f"self.gt: {self.gt.shape}")
+            # print("-----------------------------------------------")
+            # l_pix = self.cri_pix(preds[-1], self.gt)
+            
 
             # print('l pix ... ', l_pix)
             l_total += l_pix
             loss_dict['l_pix'] = l_pix
 
         # perceptual loss
-        if self.cri_perceptual:
-            l_percep, l_style = self.cri_perceptual(self.output, self.gt)
-        #
-            if l_percep is not None:
-                l_total += l_percep
-                loss_dict['l_percep'] = l_percep
-            if l_style is not None:
-                l_total += l_style
-                loss_dict['l_style'] = l_style
+        # if self.cri_perceptual:
+        #     l_percep, l_style = self.cri_perceptual(self.output, self.gt)
+        # #
+        #     if l_percep is not None:
+        #         l_total += l_percep
+        #         loss_dict['l_percep'] = l_percep
+        #     if l_style is not None:
+        #         l_total += l_style
+        #         loss_dict['l_style'] = l_style
 
 
         l_total = l_total + 0. * sum(p.sum() for p in self.net_g.parameters())
@@ -233,12 +248,15 @@ class ImageRestorationModel(BaseModel):
 
         self.log_dict = self.reduce_loss_dict(loss_dict)
 
-    def test(self):
+    def test(self, img_name):
         self.net_g.eval()
         with torch.no_grad():
             n = len(self.lq)
             outs = []
-            m = self.opt['val'].get('max_minibatch', n)
+            # m = self.opt['val'].get('max_minibatch', n)
+            m=1
+            # print(f"m: {m}")
+            # print(f"n: {n}")
             i = 0
             while i < n:
                 j = i + m
@@ -251,11 +269,40 @@ class ImageRestorationModel(BaseModel):
                 i = j
 
             self.output = torch.cat(outs, dim=0)
+            # print(f"===================================")
+            # print(f"self.output.shape: {self.output.shape}")
+            # img_tensor = self.output.squeeze(0) 
+            # transform_to_pil = transforms.ToPILImage()
+            # image = transform_to_pil(img_tensor)
+            # save_path = '/home/tahir/workspace/descan_extension/data_set/Descan_dataset/Test/nafnet_output_40/' + str(img_name) + '.png'
+            # image.save(save_path)
+            # print(f"===================================")
         self.net_g.train()
 
+    def contrast_enhancement(img, save_path, img_name, mode): 
+        
+        k = 1.5
+        high_boost_kernel = np.array([[-1, -1, -1],
+                                      [-1,  k+8, -1],
+                                      [-1, -1, -1]])
+        if mode == 1:
+            img_np_high_boost = cv2.filter2D(img, -1, high_boost_kernel)
+            x = img_name[0:-4] + '_1_highbooast' + '.png'
+            save_img_path = osp.join(save_path, x) 
+
+            imwrite(img_np_high_boost, save_img_path)
+            # cv2.imwrite(os.path.join(save_img_path, x), img_np_high_boost)
+
+    
     def dist_validation(self, dataloader, current_iter, tb_logger, save_img, rgb2bgr, use_image):
+
+        ce_mode = self.opt['ce_mode']
         dataset_name = dataloader.dataset.opt['name']
-        with_metrics = self.opt['val'].get('metrics') is not None
+        # with_metrics = self.opt['val'].get('metrics') is not None
+        # with_metrics = None
+        # with_metrics = self.opt['val']['compute_metrics'] 
+        with_metrics = False 
+        
         if with_metrics:
             self.metric_results = {
                 metric: 0
@@ -267,24 +314,26 @@ class ImageRestorationModel(BaseModel):
             pbar = tqdm(total=len(dataloader), unit='image')
 
         cnt = 0
-
+        # time_for_each_img = []
         for idx, val_data in enumerate(dataloader):
             if idx % world_size != rank:
                 continue
 
             img_name = osp.splitext(osp.basename(val_data['lq_path'][0]))[0]
+   
 
             self.feed_data(val_data, is_val=True)
-            if self.opt['val'].get('grids', False):
-                self.grids()
+      
+            self.test(img_name)
 
-            self.test()
-
-            if self.opt['val'].get('grids', False):
-                self.grids_inverse()
 
             visuals = self.get_current_visuals()
+            outa_img_yo = visuals['result'] 
+            # img_save_path_tensor = '/home/tahir/workspace/NAFNet/NAFNet/results/tensor_imgs/img512_cc512/'+img_name+'.png' 
+            # torchvision.utils.save_image(outa_img_yo, img_save_path_tensor)
+
             sr_img = tensor2img([visuals['result']], rgb2bgr=rgb2bgr)
+            # lq_img = tensor2img([visuals['lq']], rgb2bgr=rgb2bgr)
             if 'gt' in visuals:
                 gt_img = tensor2img([visuals['gt']], rgb2bgr=rgb2bgr)
                 del self.gt
@@ -314,16 +363,61 @@ class ImageRestorationModel(BaseModel):
                         save_gt_img_path = osp.join(self.opt['path']['visualization'],
                                                  img_name,
                                                  f'{img_name}_{current_iter}_gt.png')
-                    else:
-                        save_img_path = osp.join(
-                            self.opt['path']['visualization'], dataset_name,
-                            f'{img_name}.png')
-                        save_gt_img_path = osp.join(
-                            self.opt['path']['visualization'], dataset_name,
-                            f'{img_name}_gt.png')
+         
+                    ############## CE #####################
+                    k = 1.5
+                    high_boost_kernel = np.array([[-1, -1, -1],
+                                                  [-1,  k+8, -1],
+                                                  [-1, -1, -1]])
+                    mild_sharpening_kernel = np.array([[0, -1,  0],
+                                                       [-1,  5, -1],
+                                                       [0, -1,  0]])
+                    sharpening_kernel = np.array([[-1, -1, -1], 
+                                                  [-1,  9, -1], 
+                                                  [-1, -1, -1]])
+                    strong_sharpening_kernel = np.array([[-1, -2, -1],
+                                                         [-2, 13, -2],
+                                                         [-1, -2, -1]])
+                    if ce_mode == 1:
+                        sr_img = cv2.filter2D(sr_img, -1, high_boost_kernel)
+                        x = img_name + '_1_highbooast' + '.png'
+                        save_img_path = osp.join(self.opt['save_path'], x) 
 
-                    imwrite(sr_img, save_img_path)
-                    imwrite(gt_img, save_gt_img_path)
+                        # imwrite(img_np_high_boost, save_img_path)
+                    if ce_mode == 2:
+                        sr_img = cv2.filter2D(sr_img, -1, mild_sharpening_kernel)
+                        x = img_name + '_2_mildSharp' + '.png'
+                        save_img_path = osp.join(self.opt['save_path'], x) 
+
+                        # imwrite(img_np_mild_sharp, save_img_path)
+                    if ce_mode == 3:
+                        sr_img = cv2.filter2D(sr_img, -1, sharpening_kernel)
+                        x = img_name + '_3_Sharp' + '.png'
+                        save_img_path = osp.join(self.opt['save_path'], x) 
+
+                        # imwrite(img_np_sharp, save_img_path)
+                    if ce_mode == 4:
+                        sr_img = cv2.filter2D(sr_img, -1, strong_sharpening_kernel)
+                        x = img_name + '_4_strongSharp' + '.png'
+                        save_img_path = osp.join(self.opt['save_path'], x) 
+
+                        # imwrite(img_np_strong_sharp, save_img_path)
+
+                    if ce_mode == 5: 
+                        img_float = img_as_float(sr_img) 
+                        sharpened_img = unsharp_mask(img_float, radius=2.0, amount=1.5)  
+                        sr_img = img_as_ubyte(sharpened_img) 
+                        x = img_name + '_5_unsharpMask' + '.png'
+                        save_img_path = osp.join(self.opt['save_path'], x) 
+
+                        # imwrite(sharp_img_unshapmask, save_img_path)
+                    if self.opt['name'] == 'EO': 
+                        imwrite(sr_img, save_img_path)
+                    elif self.opt['name'] == 'SAR': 
+                        sr_img = cv2.cvtColor(sr_img, cv2.COLOR_BGR2GRAY)
+                        imwrite(sr_img, save_img_path)
+                    ############## CE #####################
+            
 
             if with_metrics:
                 # calculate metrics
@@ -355,7 +449,11 @@ class ImageRestorationModel(BaseModel):
             collected_metrics['cnt'] = torch.tensor(cnt).float().to(self.device)
 
             self.collected_metrics = collected_metrics
-        
+        ## for test#############################################
+        # time_for_each_img_avg = sum(time_for_each_img[1:])/len(time_for_each_img[1:])
+        # log_strr = f'average time taken per image: {time_for_each_img_avg}\n'
+        # logger = get_root_logger()
+        # logger.info(log_strr)
         keys = []
         metrics = []
         for name, value in self.collected_metrics.items():

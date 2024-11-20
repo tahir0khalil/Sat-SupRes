@@ -117,9 +117,13 @@ def paired_random_crop_hw(img_gts, img_lqs, gt_patch_size_h, gt_patch_size_w, sc
         img_gts = [img_gts]
     if not isinstance(img_lqs, list):
         img_lqs = [img_lqs]
+    # print("===================")
+    # print(f"img_lqs[0].shape: {img_lqs[0].shape}")
 
     h_lq, w_lq, _ = img_lqs[0].shape
     h_gt, w_gt, _ = img_gts[0].shape
+    # h_lq, w_lq = img_lqs[0].shape
+    # h_gt, w_gt = img_gts[0].shape
     lq_patch_size_h = gt_patch_size_h // scale
     lq_patch_size_w = gt_patch_size_w // scale
 
