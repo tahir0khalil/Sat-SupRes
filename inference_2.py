@@ -10,17 +10,19 @@ from basicsr.utils import (get_env_info, get_root_logger, get_time_str,
                            make_exp_dirs)
 from basicsr.utils.options import dict2str 
 
-# name = 'EO' 
-# lq_path = '/NAS2/tahir/EO_SAR_val_100/EO/LR'
-# model_path = './exp/NAFNetSR-B_x2_EO_2_blur/models/net_g_100000.pth'  
-# save_path = '/NAS2/tahir/EO_SAR_val_100/EO/model_output' 
+name = 'EO' # [EO, SAR]
+lq_path = '/NAS2/tahir/EO_SAR_val_100/EO/LR' 
+save_path = '/NAS2/tahir/EO_SAR_val_100/EO/model_output' 
+CE_mode = 5 #[1, 2, 3, 4, 5]
 
-name = 'SAR' 
-lq_path = '/NAS2/tahir/EO_SAR_val_100/SAR/LR'
-model_path = './exp/NAFNetSR-B_x2_SAR_2_blur/models/net_g_100000.pth' 
-save_path = '/NAS2/tahir/EO_SAR_val_100/SAR/model_output'
+if name == 'EO': 
+    model_path = './exp/NAFNetSR-B_x2_EO_2_blur/models/net_g_100000.pth'  
+elif name == 'SAR': 
+    model_path = './exp/NAFNetSR-B_x2_SAR_2_blur/models/net_g_100000.pth'  
+else: 
+    raise ValueError("Invalid model selection, select either EO or SAR")
 
-CE_mode = 5
+os.makedirs(save_path, exist_ok=True) 
 
 opt = {
     'name': name, 
